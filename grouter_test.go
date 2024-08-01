@@ -1,28 +1,3 @@
-# grouter
-An elegant USSD router in go
-
-### Routers
-
-A router sits between the routing engine and the end function. The job of a router
-is to create requests from the incoming web request and provide session management.
-
-The routing engine already takes care of managing the different states that the end
-application might have. 
-
-Additional routers can be found in [routers](routers/).
-
-The router must implement the `grouter.Router` interface and provide implementations 
-for `grouter.UssdRequest`, and `grouter.UssdSession` interfaces.
-
-### Templating support
-
-The library also supports template usage with custom function bindings.
-
-### Example
-
-Example [grouter_test.go](grouter_test.go)
-
-```go
 package grouter_test
 
 import (
@@ -153,11 +128,3 @@ func endSession(req grouter.UssdRequest) bool {
 	req.End("Thank you %s. Please come again!", req.MSISDN())
 	return false
 }
-
-```
-
-You can test the above code with the following USSD simulators
-
-1. https://developers.africastalking.com/simulator
-2. https://play.google.com/store/apps/details?id=com.africastalking.sandbox&hl=en
-3. https://github.com/nndi-oss/dialoguss
