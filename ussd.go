@@ -23,7 +23,6 @@ type UssdRequest interface {
 	// Ends the session
 	End(text string, args ...any)
 	EndWithTemplate(tmplName string, values TemplateValues)
-	// Return or sets the request's IO state
 	// Set a request attribute
 	SetAttribute(key string, value any)
 
