@@ -13,26 +13,24 @@ import (
 	"time"
 )
 
-const (
-	AttrCurrentOption = "ThisOption"
-)
-
 type Logger interface {
 	Printf(string, ...any)
 }
 
+// The main routing engine (Layer 0 router)
 type Engine struct {
-	Log         Logger
-	Debug       bool
-	NotFound    RouteHandler
-	router      UssdRouter
-	options     []*MenuOption
-	Storage     Storage
-	ihandler    int
-	templateMap map[string]*template.Template
-	stateCache  *stateCache
-	//routeTable  map[string][]*optionList
-	indexScreen string
+	Log              Logger
+	Debug            bool
+	NotFound         RouteHandler
+	router           UssdRouter
+	options          []*MenuOption
+	Storage          Storage
+	ihandler         int
+	templateMap      map[string]*template.Template
+	stateCache       *stateCache
+	indexScreen      string
+	storageFrequency time.Duration
+	storageEviction  time.Duration
 }
 
 func (e Engine) currentHandler() string {
@@ -52,7 +50,21 @@ type MenuOption struct {
 	parentScreen string
 }
 
+// Responsible for creating USSD requests
 type UssdRouter interface {
+	// Creates parses the incoming http request and creates a USSD request from it.
+	//
+	// # Session Management
+	//
+	// The router is responsible for providing and attaching a stage. The storage parameter
+	// can be used to store or retrieve the session.
+	//
+	// # Returning responses
+	//
+	//	resp *BufferedResponse
+	// should be used to buffer output from the handlers, through the UssdRequest interface.
+	//
+	// The routing engine utilizes this to create a final response back to the client.
 	CreateRequest(resp *BufferedResponse, req *http.Request, storage Storage) (UssdRequest, error)
 }
 
@@ -67,10 +79,11 @@ type RouterOption func(r *Engine) error
 
 func NewRouterEngine(options ...RouterOption) (*Engine, error) {
 	r := Engine{
-		Log:     &defaultLogger{shutup: true},
-		Storage: NewInMemorySessionStorage(30*time.Second, 2*time.Minute),
+		Log:              &defaultLogger{shutup: true},
+		storageFrequency: 30 * time.Second,
+		storageEviction:  2 * time.Minute,
 		NotFound: func(request UssdRequest) bool {
-			request.End("Invalid option or session")
+			request.End("Invalid option")
 			return false
 		},
 		stateCache:  newStateCache(30*time.Second, 2*time.Minute),
@@ -81,6 +94,7 @@ func NewRouterEngine(options ...RouterOption) (*Engine, error) {
 			return nil, err
 		}
 	}
+	r.Storage = NewInMemorySessionStorage(r.storageFrequency, r.storageEviction)
 	if r.router == nil {
 		return nil, ErrRouterNotFound
 	}
@@ -151,9 +165,8 @@ func (e *Engine) RouteFromHttpRequest(w http.ResponseWriter, req *http.Request) 
 		} else {
 			e.NotFound(request)
 		}
-		w.WriteHeader(200)
 		if writer.buf.Len() == 0 && IsEmptyText(writer.templateName) {
-			e.Log.Printf("session ended because there was response from handler `%s`. Make sure to call request.EndXXX or ContinueXXX", e.currentHandler())
+			e.Log.Printf("session ended because there was no response from handler `%s`. Make sure to call request.EndXXX or ContinueXXX", e.currentHandler())
 			end("Unexpected end of session")
 		} else {
 			if !IsEmptyText(writer.templateName) {
@@ -188,6 +201,13 @@ func NewMenuOption(code string, h RouteHandler, name string, sub ...*MenuOption)
 }
 
 var (
+	WithSessionTimes = func(probeFrequency, timeToEviction time.Duration) RouterOption {
+		return func(r *Engine) error {
+			r.storageFrequency = probeFrequency
+			r.storageEviction = timeToEviction
+			return nil
+		}
+	}
 	DebugMode = func(r *Engine) error {
 		r.Debug = true
 		switch v := r.Log.(type) {
