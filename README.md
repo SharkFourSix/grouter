@@ -18,6 +18,12 @@ for `grouter.UssdRequest`, and `grouter.UssdSession` interfaces.
 
 The library also supports template usage with custom function bindings.
 
+### Usage
+
+```go
+go get github.com/SharkFourSix/grouter
+```
+
 ### Example
 
 Example [grouter_test.go](grouter_test.go)
