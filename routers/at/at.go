@@ -70,11 +70,12 @@ func (r *router) CreateRequest(resp *grouter.BufferedResponse, req *http.Request
 	if grouter.IsEmptyText(request.Text) {
 		// New session
 		sess = &africasTalkingUssdSession{
-			startTime:   time.Now(),
-			readPointer: 0,
-			store:       cmap.New(),
-			id:          request.SessionId,
-			state:       grouter.READ_OPTION,
+			startTime:             time.Now(),
+			readPointer:           0,
+			store:                 cmap.New(),
+			id:                    request.SessionId,
+			state:                 grouter.READ_OPTION,
+			autoAdjustReadPointer: false,
 		}
 		store.Set(request.SessionId, sess)
 	} else {

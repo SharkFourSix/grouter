@@ -1,6 +1,7 @@
 package at
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,18 +11,27 @@ import (
 )
 
 type africasTalkingUssdSession struct {
-	startTime   time.Time
-	readPointer int
-	store       cmap.ConcurrentMap
-	state       grouter.RouterState
-	option      string
-	input       string
-	id          string
+	startTime             time.Time
+	readPointer           int
+	store                 cmap.ConcurrentMap
+	state                 grouter.RouterState
+	option                string
+	input                 string
+	id                    string
+	autoAdjustReadPointer bool
 }
 
 func (s *africasTalkingUssdSession) Read(request *requestData) {
-	value := strings.Clone(request.Text[s.readPointer:])
-	s.readPointer = len(request.Text) + 1 // adjust pointer (account for asteriks)
+	var (
+		value       string
+		inputLength = len(request.Text)
+		pointer     = s.readPointer
+	)
+	if s.autoAdjustReadPointer {
+		pointer = min(pointer, inputLength)
+	}
+	value = strings.Clone(request.Text[pointer:])
+	s.readPointer = inputLength + 1 // adjust pointer (account for asteriks)
 	switch s.state {
 	case grouter.READ_INPUT: // previous option is kept
 		s.input = value
@@ -56,4 +66,30 @@ func (s *africasTalkingUssdSession) MustGet(key string) any {
 		return value
 	}
 	panic(fmt.Errorf("%s: not found", key))
+}
+
+// SetAutoAdjustReadPointer Sets the read pointer to auto adjust when using
+// manual route handling using grouter.UssdRequest.Prompt() functions, which
+// can cause index out of bounds error.
+//
+// The function will panic if the request is not provided by this module.
+func SetAutoAdjustReadPointer(request grouter.UssdRequest, autoAdjust bool) {
+	atRequest, ok := request.(*ussd_request)
+	if !ok {
+		panic(errors.New("expected AT ussd request instance"))
+	}
+	atRequest.sess.autoAdjustReadPointer = autoAdjust
+}
+
+// IsReadPointerAutoAdjusted Gets whether the read pointer is set to auto 
+// adjust when using manual route handling using grouter.UssdRequest.Prompt() 
+// functions.
+//
+// The function will panic if the request is not provided by this module.
+func IsReadPointerAutoAdjusted(request grouter.UssdRequest) bool {
+	atRequest, ok := request.(*ussd_request)
+	if !ok {
+		panic(errors.New("expected AT ussd request instance"))
+	}
+	return atRequest.sess.autoAdjustReadPointer
 }
